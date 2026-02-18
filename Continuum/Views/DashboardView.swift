@@ -10,9 +10,11 @@ import SwiftData
 
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var appNavigation: AppNavigation
     @Query private var subscriptions: [Subscription]
     @Query private var assets: [PersonalAsset]
     @Query private var warranties: [Warranty]
+    @State private var showMonthlyBreakdown = false
 
     private var monthlyRecurringTotal: Decimal {
         subscriptions.reduce(0) { $0 + $1.monthlyEquivalent }
@@ -46,25 +48,29 @@ struct DashboardView: View {
                             title: "Monthly Recurring",
                             value: formatCurrency(monthlyRecurringTotal),
                             icon: "arrow.triangle.2.circlepath",
-                            color: .blue
+                            color: .blue,
+                            onTap: { showMonthlyBreakdown = true }
                         )
                         SummaryCard(
                             title: "Total Assets",
                             value: formatCurrency(totalAssetsValue),
                             icon: "dollarsign",
-                            color: .green
+                            color: .green,
+                            onTap: { appNavigation.switchToItems(category: .assets) }
                         )
                         SummaryCard(
                             title: "Subscriptions",
                             value: "\(subscriptions.filter(\.isSubscription).count)",
                             icon: "creditcard",
-                            color: .orange
+                            color: .orange,
+                            onTap: { appNavigation.switchToItems(category: .subscriptions) }
                         )
                         SummaryCard(
                             title: "Warranties",
                             value: "\(warranties.count)",
                             icon: "shield.checkered",
-                            color: .purple
+                            color: .purple,
+                            onTap: { appNavigation.switchToItems(category: .warranties) }
                         )
                     }
 
@@ -127,6 +133,19 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
             .background(Color(.systemGroupedBackground))
+            .sheet(isPresented: $showMonthlyBreakdown) {
+                MonthlyRecurringBreakdownSheet(
+                    subscriptions: subscriptions,
+                    total: monthlyRecurringTotal,
+                    formatCurrency: formatCurrency,
+                    onViewAll: {
+                        showMonthlyBreakdown = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            appNavigation.switchToItems(category: .subscriptions)
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -138,11 +157,79 @@ struct DashboardView: View {
     }
 }
 
+// MARK: - Monthly recurring breakdown sheet
+
+private struct MonthlyRecurringBreakdownSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let subscriptions: [Subscription]
+    let total: Decimal
+    let formatCurrency: (Decimal) -> String
+    let onViewAll: () -> Void
+
+    private var sortedByMonthly: [Subscription] {
+        subscriptions.sorted { $0.monthlyEquivalent > $1.monthlyEquivalent }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if subscriptions.isEmpty {
+                    ContentUnavailableView(
+                        "No recurring items",
+                        systemImage: "arrow.triangle.2.circlepath",
+                        description: Text("Add subscriptions or recurring expenses to see a monthly breakdown.")
+                    )
+                } else {
+                    List {
+                        ForEach(sortedByMonthly) { sub in
+                            HStack {
+                                Text(sub.name)
+                                    .font(.body)
+                                Spacer()
+                                Text(formatCurrency(sub.monthlyEquivalent))
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Section {
+                            HStack {
+                                Text("Total")
+                                    .font(.headline)
+                                Spacer()
+                                Text(formatCurrency(total))
+                                    .font(.headline)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle("Monthly Recurring")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                if !subscriptions.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("View all") {
+                            onViewAll()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct SummaryCard: View {
     let title: String
     let value: String
     let icon: String
     let color: Color
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -159,6 +246,10 @@ private struct SummaryCard: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture {
+            onTap?()
+        }
     }
 }
 
@@ -182,5 +273,6 @@ private struct SectionCard<Content: View>: View {
 
 #Preview {
     DashboardView()
+        .environmentObject(AppNavigation())
         .modelContainer(for: [Subscription.self, PersonalAsset.self, Warranty.self], inMemory: true)
 }

@@ -32,7 +32,7 @@ struct SubscriptionExport: Codable {
     let isSubscription: Bool
     let createdAt: Date
 
-    init(from subscription: Subscription) {
+    @MainActor init(from subscription: Subscription) {
         name = subscription.name
         amount = "\(subscription.amount)"
         billingCycle = subscription.billingCycle.rawValue
@@ -56,7 +56,7 @@ struct AssetExport: Codable {
     let updatedAt: Date
     let valueChanges: [AssetValueChangeExport]
 
-    init(from asset: PersonalAsset) {
+    @MainActor init(from asset: PersonalAsset) {
         name = asset.name
         currentValue = "\(asset.currentValue)"
         purchaseDate = asset.purchaseDate
@@ -74,7 +74,7 @@ struct AssetValueChangeExport: Codable {
     let newValue: String
     let note: String?
 
-    init(from change: AssetValueChange) {
+    @MainActor init(from change: AssetValueChange) {
         date = change.date
         previousValue = "\(change.previousValue)"
         newValue = "\(change.newValue)"
@@ -92,7 +92,7 @@ struct WarrantyExport: Codable {
     let notes: String
     let createdAt: Date
 
-    init(from warranty: Warranty) {
+    @MainActor init(from warranty: Warranty) {
         productName = warranty.productName
         purchaseDate = warranty.purchaseDate
         expiryDate = warranty.expiryDate
@@ -105,7 +105,7 @@ struct WarrantyExport: Codable {
 // MARK: - Build from model context
 
 extension ContinuumExport {
-    static func build(from modelContext: ModelContext) throws -> ContinuumExport {
+    @MainActor static func build(from modelContext: ModelContext) throws -> ContinuumExport {
         let subDescriptor = FetchDescriptor<Subscription>(sortBy: [SortDescriptor(\.createdAt)])
         let assetDescriptor = FetchDescriptor<PersonalAsset>(sortBy: [SortDescriptor(\.createdAt)])
         let warrantyDescriptor = FetchDescriptor<Warranty>(sortBy: [SortDescriptor(\.createdAt)])

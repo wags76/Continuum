@@ -23,7 +23,7 @@ enum ItemCategory: String, CaseIterable {
 }
 
 struct ItemListView: View {
-    @State private var selectedCategory: ItemCategory = .subscriptions
+    @Binding var selectedCategory: ItemCategory
 
     var body: some View {
         NavigationStack {
@@ -299,6 +299,6 @@ private struct WarrantyRowView: View {
 }
 
 #Preview {
-    ItemListView()
+    ItemListView(selectedCategory: .constant(.subscriptions))
         .modelContainer(for: [Subscription.self, PersonalAsset.self, Warranty.self], inMemory: true)
 }
