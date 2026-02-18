@@ -15,17 +15,13 @@ struct ContentView: View {
                 .tabItem {
                     Label("Dashboard", systemImage: "chart.bar.doc.horizontal")
                 }
-            SubscriptionListView()
+            CalendarView()
                 .tabItem {
-                    Label("Subscriptions", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Calendar", systemImage: "calendar")
                 }
-            AssetListView()
+            ItemListView()
                 .tabItem {
-                    Label("Assets", systemImage: "dollarsign")
-                }
-            WarrantyListView()
-                .tabItem {
-                    Label("Warranties", systemImage: "shield.checkered")
+                    Label("Items", systemImage: "list.bullet.rectangle")
                 }
             SettingsView()
                 .tabItem {
