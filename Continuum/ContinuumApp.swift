@@ -12,7 +12,10 @@ import SwiftData
 struct ContinuumApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Subscription.self,
+            PersonalAsset.self,
+            AssetValueChange.self,
+            Warranty.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
