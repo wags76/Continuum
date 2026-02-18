@@ -42,36 +42,55 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Summary cards
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        SummaryCard(
-                            title: "Monthly Recurring",
-                            value: formatCurrency(monthlyRecurringTotal),
-                            icon: "arrow.triangle.2.circlepath",
-                            color: .blue,
-                            onTap: { showMonthlyBreakdown = true }
-                        )
-                        SummaryCard(
-                            title: "Total Assets",
-                            value: formatCurrency(totalAssetsValue),
-                            icon: "dollarsign",
-                            color: .green,
-                            onTap: { appNavigation.switchToItems(category: .assets) }
-                        )
-                        SummaryCard(
-                            title: "Subscriptions",
-                            value: "\(subscriptions.filter(\.isSubscription).count)",
-                            icon: "creditcard",
-                            color: .orange,
-                            onTap: { appNavigation.switchToItems(category: .subscriptions) }
-                        )
-                        SummaryCard(
-                            title: "Warranties",
-                            value: "\(warranties.count)",
-                            icon: "shield.checkered",
-                            color: .purple,
-                            onTap: { appNavigation.switchToItems(category: .warranties) }
-                        )
+                    // Summary: row 1 = primary metrics, row 2 = item counts
+                    VStack(spacing: 16) {
+                        HStack(spacing: 16) {
+                            SummaryCard(
+                                title: "Monthly Recurring",
+                                value: formatCurrency(monthlyRecurringTotal),
+                                icon: "arrow.triangle.2.circlepath",
+                                color: .blue,
+                                onTap: { showMonthlyBreakdown = true }
+                            )
+                            .frame(maxWidth: .infinity)
+                            SummaryCard(
+                                title: "Total Assets",
+                                value: formatCurrency(totalAssetsValue),
+                                icon: "dollarsign",
+                                color: .green,
+                                onTap: { appNavigation.switchToItems(category: .assets) }
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        HStack(spacing: 16) {
+                            SummaryCard(
+                                title: "Subscriptions",
+                                value: "\(subscriptions.filter(\.isSubscription).count)",
+                                icon: "creditcard",
+                                color: .orange,
+                                onTap: { appNavigation.switchToItems(category: .subscriptions) }
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 118)
+                            SummaryCard(
+                                title: "Recurring Payments",
+                                value: "\(subscriptions.filter { !$0.isSubscription }.count)",
+                                icon: "repeat",
+                                color: .teal,
+                                onTap: { appNavigation.switchToItems(category: .recurringPayments) }
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 118)
+                            SummaryCard(
+                                title: "Warranties",
+                                value: "\(warranties.count)",
+                                icon: "shield.checkered",
+                                color: .purple,
+                                onTap: { appNavigation.switchToItems(category: .warranties) }
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 118)
+                        }
                     }
 
                     // Upcoming renewals
@@ -241,6 +260,10 @@ private struct SummaryCard: View {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .frame(minHeight: 34)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()

@@ -10,12 +10,14 @@ import SwiftData
 
 enum ItemCategory: String, CaseIterable {
     case subscriptions = "Subscriptions"
+    case recurringPayments = "Recurring Payments"
     case assets = "Assets"
     case warranties = "Warranties"
 
     var icon: String {
         switch self {
         case .subscriptions: return "arrow.triangle.2.circlepath"
+        case .recurringPayments: return "repeat"
         case .assets: return "dollarsign"
         case .warranties: return "shield.checkered"
         }
@@ -37,7 +39,9 @@ struct ItemListView: View {
 
                 switch selectedCategory {
                 case .subscriptions:
-                    SubscriptionListViewContent(searchText: searchText)
+                    RecurringItemListViewContent(searchText: searchText, filter: .subscriptionsOnly)
+                case .recurringPayments:
+                    RecurringItemListViewContent(searchText: searchText, filter: .recurringPaymentsOnly)
                 case .assets:
                     AssetListViewContent(searchText: searchText)
                 case .warranties:
@@ -94,28 +98,56 @@ struct ItemListView: View {
     }
 }
 
-// MARK: - Subscription List Content (extracted for reuse in tab)
+// MARK: - Recurring items list (subscriptions vs recurring payments)
 
-private struct SubscriptionListViewContent: View {
+private enum RecurringItemFilter {
+    case subscriptionsOnly   // isSubscription == true
+    case recurringPaymentsOnly // isSubscription == false
+}
+
+private struct RecurringItemListViewContent: View {
     var searchText: String
+    var filter: RecurringItemFilter
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Subscription.nextDueDate) private var subscriptions: [Subscription]
 
+    private var matchingSubscriptions: [Subscription] {
+        switch filter {
+        case .subscriptionsOnly: return subscriptions.filter(\.isSubscription)
+        case .recurringPaymentsOnly: return subscriptions.filter { !$0.isSubscription }
+        }
+    }
+
     private var filteredSubscriptions: [Subscription] {
-        guard !searchText.isEmpty else { return subscriptions }
+        let base = matchingSubscriptions
+        guard !searchText.isEmpty else { return base }
         let query = searchText.lowercased()
-        return subscriptions.filter {
+        return base.filter {
             $0.name.lowercased().contains(query) || $0.category.rawValue.lowercased().contains(query)
+        }
+    }
+
+    private var emptyTitle: String {
+        switch filter {
+        case .subscriptionsOnly: return "No Subscriptions"
+        case .recurringPaymentsOnly: return "No Recurring Payments"
+        }
+    }
+
+    private var emptyDescription: String {
+        switch filter {
+        case .subscriptionsOnly: return "Add subscriptions (e.g. streaming, software) to track them here."
+        case .recurringPaymentsOnly: return "Add recurring payments (e.g. rent, loans) to track them here."
         }
     }
 
     var body: some View {
         Group {
-            if subscriptions.isEmpty {
+            if matchingSubscriptions.isEmpty {
                 ContentUnavailableView(
-                    "No Subscriptions",
-                    systemImage: "creditcard",
-                    description: Text("Add subscriptions or recurring expenses to track them here.")
+                    emptyTitle,
+                    systemImage: filter == .subscriptionsOnly ? "creditcard" : "repeat",
+                    description: Text(emptyDescription)
                 )
             } else if filteredSubscriptions.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -143,7 +175,7 @@ private struct SubscriptionListViewContent: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 NavigationLink {
-                    SubscriptionEditView()
+                    SubscriptionEditView(initialIsSubscription: filter == .subscriptionsOnly)
                 } label: {
                     Image(systemName: "plus")
                 }

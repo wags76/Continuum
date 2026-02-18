@@ -19,10 +19,21 @@ struct SubscriptionEditView: View {
     @State private var category: SubscriptionCategory = .other
     @State private var notes: String = ""
     @State private var isSubscription: Bool = true
+    @State private var hasAppliedInitialSubscription: Bool = false
 
     var subscription: Subscription?
+    /// When adding a new item, set to true for Subscriptions tab or false for Recurring Payments tab.
+    var initialIsSubscription: Bool? = nil
 
     private var isEditing: Bool { subscription != nil }
+
+    private var navigationTitle: String {
+        if isEditing {
+            return subscription!.isSubscription ? "Edit Subscription" : "Edit Recurring Payment"
+        }
+        let effectiveIsSubscription = initialIsSubscription ?? isSubscription
+        return effectiveIsSubscription ? "New Subscription" : "New Recurring Payment"
+    }
 
     var body: some View {
         Form {
@@ -41,14 +52,14 @@ struct SubscriptionEditView: View {
                         Text(cat.rawValue).tag(cat)
                     }
                 }
-                Toggle("Subscription (vs Recurring Expense)", isOn: $isSubscription)
+                Toggle("Subscription (vs Recurring Payment)", isOn: $isSubscription)
             }
             Section("Notes") {
                 TextEditor(text: $notes)
                     .frame(minHeight: 80)
             }
         }
-        .navigationTitle(isEditing ? "Edit Subscription" : "New Subscription")
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -72,6 +83,9 @@ struct SubscriptionEditView: View {
                 category = sub.category
                 notes = sub.notes
                 isSubscription = sub.isSubscription
+            } else if let initial = initialIsSubscription, !hasAppliedInitialSubscription {
+                hasAppliedInitialSubscription = true
+                isSubscription = initial
             }
         }
     }
