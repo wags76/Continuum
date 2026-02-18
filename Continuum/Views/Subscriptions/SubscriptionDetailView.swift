@@ -10,6 +10,11 @@ import SwiftData
 
 struct SubscriptionDetailView: View {
     @Bindable var subscription: Subscription
+    @Environment(\.modelContext) private var modelContext
+
+    private var nextRenewalDate: Date {
+        subscription.billingCycle.nextDueDateFrom(subscription.nextDueDate)
+    }
 
     var body: some View {
         Form {
@@ -33,6 +38,16 @@ struct SubscriptionDetailView: View {
                 Section("Notes") {
                     Text(subscription.notes)
                 }
+            }
+            Section {
+                Button {
+                    subscription.nextDueDate = nextRenewalDate
+                    try? modelContext.save()
+                } label: {
+                    Label("Mark as renewed", systemImage: "arrow.clockwise.circle.fill")
+                }
+            } footer: {
+                Text("Sets next due to \(nextRenewalDate.formatted(date: .abbreviated, time: .omitted)).")
             }
         }
         .navigationTitle(subscription.name)
