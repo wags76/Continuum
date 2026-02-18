@@ -27,6 +27,10 @@ struct ContentView: View {
                 .tabItem {
                     Label("Warranties", systemImage: "shield.checkered")
                 }
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
         }
     }
 }
