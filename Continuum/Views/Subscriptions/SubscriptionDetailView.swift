@@ -18,7 +18,16 @@ struct SubscriptionDetailView: View {
                 LabeledContent("Amount", value: formatCurrency(subscription.amount))
                 LabeledContent("Billing Cycle", value: subscription.billingCycle.rawValue)
                 LabeledContent("Category", value: subscription.category.rawValue)
-                LabeledContent("Next Due", value: subscription.nextDueDate.formatted(date: .abbreviated, time: .omitted))
+                LabeledContent("Next Due") {
+                    HStack(spacing: 6) {
+                        Text(subscription.nextDueDate.formatted(date: .abbreviated, time: .omitted))
+                        if subscription.isPastDue {
+                            Text("Past due")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
             }
             if !subscription.notes.isEmpty {
                 Section("Notes") {

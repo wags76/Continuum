@@ -76,9 +76,15 @@ struct DashboardView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(sub.name)
                                             .font(.subheadline.weight(.medium))
-                                        Text(sub.nextDueDate, format: .dateTime.month().day())
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        if sub.isPastDue {
+                                            Text("Past due")
+                                                .font(.caption)
+                                                .foregroundStyle(.red)
+                                        } else {
+                                            Text(sub.nextDueDate, format: .dateTime.month().day())
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                     Spacer()
                                     Text(formatCurrency(sub.amount))

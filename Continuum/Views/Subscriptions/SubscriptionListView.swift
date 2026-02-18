@@ -29,6 +29,7 @@ struct SubscriptionListView: View {
                             } label: {
                                 SubscriptionRowView(subscription: subscription)
                             }
+                            .listRowBackground(subscription.isPastDue ? Color.red.opacity(0.08) : nil)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
                                     modelContext.delete(subscription)
@@ -70,9 +71,20 @@ private struct SubscriptionRowView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(formatCurrency(subscription.amount))
                     .font(.subheadline.weight(.medium))
-                Text(subscription.nextDueDate, format: .dateTime.month().day())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if subscription.isPastDue {
+                        Text("Past due")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                        Text(subscription.nextDueDate, format: .dateTime.month().day())
+                            .font(.caption)
+                            .foregroundStyle(.red.opacity(0.9))
+                    } else {
+                        Text(subscription.nextDueDate, format: .dateTime.month().day())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .padding(.vertical, 4)

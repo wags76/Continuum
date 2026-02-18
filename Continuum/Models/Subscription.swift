@@ -69,6 +69,11 @@ final class Subscription {
         self.createdAt = Date()
     }
 
+    /// True when nextDueDate is in the past (renewal overdue)
+    var isPastDue: Bool {
+        nextDueDate < Date()
+    }
+
     /// Monthly equivalent cost for comparison
     var monthlyEquivalent: Decimal {
         switch billingCycle {
