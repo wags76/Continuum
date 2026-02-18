@@ -131,7 +131,7 @@ struct DashboardView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("Continuum")
             .background(Color(.systemGroupedBackground))
             .sheet(isPresented: $showMonthlyBreakdown) {
                 MonthlyRecurringBreakdownSheet(

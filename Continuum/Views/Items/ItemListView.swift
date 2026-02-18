@@ -24,39 +24,90 @@ enum ItemCategory: String, CaseIterable {
 
 struct ItemListView: View {
     @Binding var selectedCategory: ItemCategory
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Category", selection: $selectedCategory) {
-                    ForEach(ItemCategory.allCases, id: \.self) { category in
-                        Label(category.rawValue, systemImage: category.icon)
-                            .tag(category)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
+                categorySwitcher
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 6)
+                    .background(Color(.systemGroupedBackground))
 
                 switch selectedCategory {
                 case .subscriptions:
-                    SubscriptionListViewContent()
+                    SubscriptionListViewContent(searchText: searchText)
                 case .assets:
-                    AssetListViewContent()
+                    AssetListViewContent(searchText: searchText)
                 case .warranties:
-                    WarrantyListViewContent()
+                    WarrantyListViewContent(searchText: searchText)
                 }
             }
             .navigationTitle("Items")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search")
+            .onChange(of: selectedCategory) { _, _ in
+                searchText = ""
+            }
             .background(Color(.systemGroupedBackground))
         }
+    }
+
+    private var categorySwitcher: some View {
+        HStack(spacing: 8) {
+            ForEach(ItemCategory.allCases, id: \.self) { category in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        selectedCategory = category
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: category.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(category.rawValue)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundColor(selectedCategory == category ? .white : .primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Group {
+                            if selectedCategory == category {
+                                Capsule()
+                                    .fill(Color.themeColor)
+                                    .shadow(color: Color.themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
+                            } else {
+                                Capsule()
+                                    .fill(Color.themeColor.opacity(0.08))
+                                    .overlay(Capsule().stroke(Color.themeColor.opacity(0.2), lineWidth: 1))
+                            }
+                        }
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
 // MARK: - Subscription List Content (extracted for reuse in tab)
 
 private struct SubscriptionListViewContent: View {
+    var searchText: String
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Subscription.nextDueDate) private var subscriptions: [Subscription]
+
+    private var filteredSubscriptions: [Subscription] {
+        guard !searchText.isEmpty else { return subscriptions }
+        let query = searchText.lowercased()
+        return subscriptions.filter {
+            $0.name.lowercased().contains(query) || $0.category.rawValue.lowercased().contains(query)
+        }
+    }
 
     var body: some View {
         Group {
@@ -66,9 +117,11 @@ private struct SubscriptionListViewContent: View {
                     systemImage: "creditcard",
                     description: Text("Add subscriptions or recurring expenses to track them here.")
                 )
+            } else if filteredSubscriptions.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             } else {
                 List {
-                    ForEach(subscriptions) { subscription in
+                    ForEach(filteredSubscriptions) { subscription in
                         NavigationLink {
                             SubscriptionDetailView(subscription: subscription)
                         } label: {
@@ -102,8 +155,17 @@ private struct SubscriptionListViewContent: View {
 // MARK: - Asset List Content
 
 private struct AssetListViewContent: View {
+    var searchText: String
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \PersonalAsset.name) private var assets: [PersonalAsset]
+
+    private var filteredAssets: [PersonalAsset] {
+        guard !searchText.isEmpty else { return assets }
+        let query = searchText.lowercased()
+        return assets.filter {
+            $0.name.lowercased().contains(query) || $0.category.rawValue.lowercased().contains(query)
+        }
+    }
 
     var body: some View {
         Group {
@@ -113,9 +175,11 @@ private struct AssetListViewContent: View {
                     systemImage: "dollarsign",
                     description: Text("Add personal assets to track their value over time.")
                 )
+            } else if filteredAssets.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             } else {
                 List {
-                    ForEach(assets) { asset in
+                    ForEach(filteredAssets) { asset in
                         NavigationLink {
                             AssetDetailView(asset: asset)
                         } label: {
@@ -148,8 +212,17 @@ private struct AssetListViewContent: View {
 // MARK: - Warranty List Content
 
 private struct WarrantyListViewContent: View {
+    var searchText: String
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Warranty.expiryDate) private var warranties: [Warranty]
+
+    private var filteredWarranties: [Warranty] {
+        guard !searchText.isEmpty else { return warranties }
+        let query = searchText.lowercased()
+        return warranties.filter {
+            $0.productName.lowercased().contains(query) || $0.vendor.lowercased().contains(query)
+        }
+    }
 
     var body: some View {
         Group {
@@ -159,9 +232,11 @@ private struct WarrantyListViewContent: View {
                     systemImage: "shield.checkered",
                     description: Text("Add product warranties to track expiry dates.")
                 )
+            } else if filteredWarranties.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             } else {
                 List {
-                    ForEach(warranties) { warranty in
+                    ForEach(filteredWarranties) { warranty in
                         NavigationLink {
                             WarrantyDetailView(warranty: warranty)
                         } label: {
