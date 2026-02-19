@@ -52,7 +52,9 @@ struct SubscriptionEditView: View {
                         Text(cat.rawValue).tag(cat)
                     }
                 }
-                Toggle("Subscription (vs Recurring Payment)", isOn: $isSubscription)
+                if isEditing {
+                    Toggle("Subscription (vs Recurring Payment)", isOn: $isSubscription)
+                }
             }
             Section("Notes") {
                 TextEditor(text: $notes)

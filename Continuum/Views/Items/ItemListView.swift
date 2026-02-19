@@ -24,77 +24,226 @@ enum ItemCategory: String, CaseIterable {
     }
 }
 
+/// Active filter for the items list. Cleared when switching categories.
+enum ItemListFilter: Equatable {
+    case subscriptionCategory(SubscriptionCategory)
+    case pastDueOnly
+    case assetCategory(AssetCategory)
+    case warrantyStatus(WarrantyFilterStatus)
+
+    var label: String {
+        switch self {
+        case .subscriptionCategory(let cat): return cat.rawValue
+        case .pastDueOnly: return "Past due"
+        case .assetCategory(let cat): return cat.rawValue
+        case .warrantyStatus(let status): return status.label
+        }
+    }
+}
+
+enum WarrantyFilterStatus: String, CaseIterable, Equatable {
+    case valid = "Valid"
+    case expiringSoon = "Expiring soon"
+    case expired = "Expired"
+
+    var label: String { rawValue }
+}
+
 struct ItemListView: View {
     @Binding var selectedCategory: ItemCategory
     @State private var searchText = ""
+    @State private var activeFilter: ItemListFilter?
+    @State private var showFilterSheet = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                categorySwitcher
-                    .padding(.horizontal)
-                    .padding(.top, 12)
-                    .padding(.bottom, 6)
-                    .background(Color(.systemGroupedBackground))
-
+            Group {
                 switch selectedCategory {
                 case .subscriptions:
-                    RecurringItemListViewContent(searchText: searchText, filter: .subscriptionsOnly)
+                    RecurringItemListViewContent(searchText: searchText, filter: .subscriptionsOnly, activeFilter: activeFilter)
                 case .recurringPayments:
-                    RecurringItemListViewContent(searchText: searchText, filter: .recurringPaymentsOnly)
+                    RecurringItemListViewContent(searchText: searchText, filter: .recurringPaymentsOnly, activeFilter: activeFilter)
                 case .assets:
-                    AssetListViewContent(searchText: searchText)
+                    AssetListViewContent(searchText: searchText, activeFilter: activeFilter)
                 case .warranties:
-                    WarrantyListViewContent(searchText: searchText)
+                    WarrantyListViewContent(searchText: searchText, activeFilter: activeFilter)
                 }
             }
-            .navigationTitle("Items")
+            .safeAreaInset(edge: .top, spacing: 0) {
+                filterPillsSection
+            }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        Text(selectedCategory.rawValue)
+                            .font(.headline)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showFilterSheet = true
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }
+                }
+            }
+            .sheet(isPresented: $showFilterSheet) {
+                ItemFilterSheet(selectedCategory: $selectedCategory, activeFilter: $activeFilter)
+            }
             .onChange(of: selectedCategory) { _, _ in
                 searchText = ""
+                activeFilter = nil
             }
             .background(Color(.systemGroupedBackground))
         }
     }
 
-    private var categorySwitcher: some View {
-        HStack(spacing: 8) {
-            ForEach(ItemCategory.allCases, id: \.self) { category in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        selectedCategory = category
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: category.icon)
-                            .font(.system(size: 14, weight: .semibold))
-                        Text(category.rawValue)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .foregroundColor(selectedCategory == category ? .white : .primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        Group {
-                            if selectedCategory == category {
-                                Capsule()
-                                    .fill(Color.themeColor)
-                                    .shadow(color: Color.themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                            } else {
-                                Capsule()
-                                    .fill(Color.themeColor.opacity(0.08))
-                                    .overlay(Capsule().stroke(Color.themeColor.opacity(0.2), lineWidth: 1))
-                            }
-                        }
-                    )
+    private func filterAppliesToCurrentCategory(_ filter: ItemListFilter) -> Bool {
+        switch (selectedCategory, filter) {
+        case (.subscriptions, .subscriptionCategory), (.subscriptions, .pastDueOnly): return true
+        case (.recurringPayments, .subscriptionCategory), (.recurringPayments, .pastDueOnly): return true
+        case (.assets, .assetCategory): return true
+        case (.warranties, .warrantyStatus): return true
+        default: return false
+        }
+    }
+
+    private var filterPillsSection: some View {
+        let hasSubFilter = activeFilter != nil && filterAppliesToCurrentCategory(activeFilter!)
+        return HStack(alignment: .center, spacing: 8) {
+            filterPill(
+                selectedCategory.rawValue,
+                removable: selectedCategory != .subscriptions,
+                onRemove: { withAnimation(.easeInOut(duration: 0.2)) { selectedCategory = .subscriptions } }
+            )
+            if hasSubFilter, let filter = activeFilter {
+                filterPill(filter.label, removable: true) {
+                    withAnimation(.easeInOut(duration: 0.2)) { activeFilter = nil }
                 }
-                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private func filterPill(_ label: String, removable: Bool, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+            if removable {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .symbolRenderingMode(.hierarchical)
+                }
             }
         }
-        .frame(maxWidth: .infinity)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Color(.tertiarySystemFill)))
+    }
+}
+
+// MARK: - Filter Sheet
+
+private struct ItemFilterSheet: View {
+    @Binding var selectedCategory: ItemCategory
+    @Binding var activeFilter: ItemListFilter?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("List Type") {
+                    ForEach(ItemCategory.allCases, id: \.self) { category in
+                        Button {
+                            selectedCategory = category
+                        } label: {
+                            HStack {
+                                Image(systemName: category.icon)
+                                    .font(.system(size: 16))
+                                    .frame(width: 24, alignment: .center)
+                                Text(category.rawValue)
+                                if selectedCategory == category {
+                                    Spacer()
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                }
+
+                switch selectedCategory {
+                case .subscriptions, .recurringPayments:
+                    Section("Category") {
+                        filterOption(nil as ItemListFilter?) { activeFilter = nil }
+                        ForEach(SubscriptionCategory.allCases, id: \.self) { cat in
+                            filterOption(.subscriptionCategory(cat)) { activeFilter = .subscriptionCategory(cat) }
+                        }
+                    }
+                    Section {
+                        Button {
+                            activeFilter = activeFilter == .pastDueOnly ? nil : .pastDueOnly
+                        } label: {
+                            HStack {
+                                Text("Past due only")
+                                if activeFilter == .pastDueOnly {
+                                    Spacer()
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                case .assets:
+                    Section("Category") {
+                        filterOption(nil as ItemListFilter?) { activeFilter = nil }
+                        ForEach(AssetCategory.allCases, id: \.self) { cat in
+                            filterOption(.assetCategory(cat)) { activeFilter = .assetCategory(cat) }
+                        }
+                    }
+                case .warranties:
+                    Section("Status") {
+                        filterOption(nil as ItemListFilter?) { activeFilter = nil }
+                        ForEach(WarrantyFilterStatus.allCases, id: \.self) { status in
+                            filterOption(.warrantyStatus(status)) { activeFilter = .warrantyStatus(status) }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Filter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func filterOption(_ filter: ItemListFilter?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(filter?.label ?? "All")
+                if activeFilter == filter {
+                    Spacer()
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .foregroundStyle(.primary)
     }
 }
 
@@ -108,14 +257,26 @@ private enum RecurringItemFilter {
 private struct RecurringItemListViewContent: View {
     var searchText: String
     var filter: RecurringItemFilter
+    var activeFilter: ItemListFilter?
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Subscription.nextDueDate) private var subscriptions: [Subscription]
 
     private var matchingSubscriptions: [Subscription] {
+        var result: [Subscription]
         switch filter {
-        case .subscriptionsOnly: return subscriptions.filter(\.isSubscription)
-        case .recurringPaymentsOnly: return subscriptions.filter { !$0.isSubscription }
+        case .subscriptionsOnly: result = subscriptions.filter(\.isSubscription)
+        case .recurringPaymentsOnly: result = subscriptions.filter { !$0.isSubscription }
         }
+        if let activeFilter {
+            switch activeFilter {
+            case .subscriptionCategory(let cat):
+                result = result.filter { $0.category == cat }
+            case .pastDueOnly:
+                result = result.filter(\.isPastDue)
+            default: break
+            }
+        }
+        return result
     }
 
     private var filteredSubscriptions: [Subscription] {
@@ -141,13 +302,26 @@ private struct RecurringItemListViewContent: View {
         }
     }
 
+    private var baseMatchingSubscriptions: [Subscription] {
+        switch filter {
+        case .subscriptionsOnly: return subscriptions.filter(\.isSubscription)
+        case .recurringPaymentsOnly: return subscriptions.filter { !$0.isSubscription }
+        }
+    }
+
     var body: some View {
         Group {
-            if matchingSubscriptions.isEmpty {
+            if baseMatchingSubscriptions.isEmpty {
                 ContentUnavailableView(
                     emptyTitle,
                     systemImage: filter == .subscriptionsOnly ? "creditcard" : "repeat",
                     description: Text(emptyDescription)
+                )
+            } else if matchingSubscriptions.isEmpty {
+                ContentUnavailableView(
+                    "No Matching Items",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("No items match the current filter.")
                 )
             } else if filteredSubscriptions.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -188,13 +362,20 @@ private struct RecurringItemListViewContent: View {
 
 private struct AssetListViewContent: View {
     var searchText: String
+    var activeFilter: ItemListFilter?
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \PersonalAsset.name) private var assets: [PersonalAsset]
 
+    private var matchingAssets: [PersonalAsset] {
+        guard let activeFilter, case .assetCategory(let cat) = activeFilter else { return assets }
+        return assets.filter { $0.category == cat }
+    }
+
     private var filteredAssets: [PersonalAsset] {
-        guard !searchText.isEmpty else { return assets }
+        let base = matchingAssets
+        guard !searchText.isEmpty else { return base }
         let query = searchText.lowercased()
-        return assets.filter {
+        return base.filter {
             $0.name.lowercased().contains(query) || $0.category.rawValue.lowercased().contains(query)
         }
     }
@@ -206,6 +387,12 @@ private struct AssetListViewContent: View {
                     "No Assets",
                     systemImage: "dollarsign",
                     description: Text("Add personal assets to track their value over time.")
+                )
+            } else if matchingAssets.isEmpty {
+                ContentUnavailableView(
+                    "No Matching Assets",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("No assets match the current filter.")
                 )
             } else if filteredAssets.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -245,13 +432,24 @@ private struct AssetListViewContent: View {
 
 private struct WarrantyListViewContent: View {
     var searchText: String
+    var activeFilter: ItemListFilter?
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Warranty.expiryDate) private var warranties: [Warranty]
 
+    private var matchingWarranties: [Warranty] {
+        guard let activeFilter, case .warrantyStatus(let status) = activeFilter else { return warranties }
+        switch status {
+        case .valid: return warranties.filter { !$0.isExpired && $0.daysUntilExpiry > 30 }
+        case .expiringSoon: return warranties.filter { !$0.isExpired && $0.daysUntilExpiry <= 30 }
+        case .expired: return warranties.filter(\.isExpired)
+        }
+    }
+
     private var filteredWarranties: [Warranty] {
-        guard !searchText.isEmpty else { return warranties }
+        let base = matchingWarranties
+        guard !searchText.isEmpty else { return base }
         let query = searchText.lowercased()
-        return warranties.filter {
+        return base.filter {
             $0.productName.lowercased().contains(query) || $0.vendor.lowercased().contains(query)
         }
     }
@@ -263,6 +461,12 @@ private struct WarrantyListViewContent: View {
                     "No Warranties",
                     systemImage: "shield.checkered",
                     description: Text("Add product warranties to track expiry dates.")
+                )
+            } else if matchingWarranties.isEmpty {
+                ContentUnavailableView(
+                    "No Matching Warranties",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("No warranties match the current filter.")
                 )
             } else if filteredWarranties.isEmpty {
                 ContentUnavailableView.search(text: searchText)
