@@ -53,7 +53,6 @@ struct ItemListView: View {
     @Binding var selectedCategory: ItemCategory
     @State private var searchText = ""
     @State private var activeFilter: ItemListFilter?
-    @State private var showFilterSheet = false
 
     var body: some View {
         NavigationStack {
@@ -70,35 +69,112 @@ struct ItemListView: View {
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
-                filterPillsSection
+                VStack(spacing: 0) {
+                    categoryPicker
+                    filterPillsSection
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search")
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    HStack {
-                        Text(selectedCategory.rawValue)
-                            .font(.headline)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showFilterSheet = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                    }
+                    filterMenu
                 }
-            }
-            .sheet(isPresented: $showFilterSheet) {
-                ItemFilterSheet(selectedCategory: $selectedCategory, activeFilter: $activeFilter)
             }
             .onChange(of: selectedCategory) { _, _ in
                 searchText = ""
                 activeFilter = nil
             }
             .background(Color(.systemGroupedBackground))
+        }
+    }
+
+    /// List type picker: tap to switch without opening a sheet.
+    private var categoryPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ItemCategory.allCases, id: \.self) { category in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { selectedCategory = category }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: category.icon)
+                                .font(.system(size: 12))
+                            Text(category.rawValue)
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                        }
+                        .foregroundStyle(selectedCategory == category ? .white : .secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule().fill(selectedCategory == category ? Color.accentColor : Color(.tertiarySystemFill))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    /// Sub-filter menu: one tap to open, one tap to pick option (no sheet).
+    @ViewBuilder
+    private var filterMenu: some View {
+        Menu {
+            switch selectedCategory {
+            case .subscriptions, .recurringPayments:
+                Button {
+                    activeFilter = nil
+                } label: {
+                    Label("All", systemImage: activeFilter == nil ? "checkmark.circle.fill" : "circle")
+                }
+                ForEach(SubscriptionCategory.allCases, id: \.self) { cat in
+                    let filter: ItemListFilter = .subscriptionCategory(cat)
+                    Button {
+                        activeFilter = activeFilter == filter ? nil : filter
+                    } label: {
+                        Label(cat.rawValue, systemImage: activeFilter == filter ? "checkmark.circle.fill" : "circle")
+                    }
+                }
+                Divider()
+                Button {
+                    activeFilter = activeFilter == .pastDueOnly ? nil : .pastDueOnly
+                } label: {
+                    Label("Past due only", systemImage: activeFilter == .pastDueOnly ? "checkmark.circle.fill" : "circle")
+                }
+            case .assets:
+                Button {
+                    activeFilter = nil
+                } label: {
+                    Label("All", systemImage: activeFilter == nil ? "checkmark.circle.fill" : "circle")
+                }
+                ForEach(AssetCategory.allCases, id: \.self) { cat in
+                    let filter: ItemListFilter = .assetCategory(cat)
+                    Button {
+                        activeFilter = activeFilter == filter ? nil : filter
+                    } label: {
+                        Label(cat.rawValue, systemImage: activeFilter == filter ? "checkmark.circle.fill" : "circle")
+                    }
+                }
+            case .warranties:
+                Button {
+                    activeFilter = nil
+                } label: {
+                    Label("All", systemImage: activeFilter == nil ? "checkmark.circle.fill" : "circle")
+                }
+                ForEach(WarrantyFilterStatus.allCases, id: \.self) { status in
+                    let filter: ItemListFilter = .warrantyStatus(status)
+                    Button {
+                        activeFilter = activeFilter == filter ? nil : filter
+                    } label: {
+                        Label(status.label, systemImage: activeFilter == filter ? "checkmark.circle.fill" : "circle")
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
         }
     }
 
@@ -114,22 +190,19 @@ struct ItemListView: View {
 
     private var filterPillsSection: some View {
         let hasSubFilter = activeFilter != nil && filterAppliesToCurrentCategory(activeFilter!)
-        return HStack(alignment: .center, spacing: 8) {
-            filterPill(
-                selectedCategory.rawValue,
-                removable: selectedCategory != .subscriptions,
-                onRemove: { withAnimation(.easeInOut(duration: 0.2)) { selectedCategory = .subscriptions } }
-            )
+        return Group {
             if hasSubFilter, let filter = activeFilter {
-                filterPill(filter.label, removable: true) {
-                    withAnimation(.easeInOut(duration: 0.2)) { activeFilter = nil }
+                HStack(alignment: .center, spacing: 8) {
+                    filterPill(filter.label, removable: true) {
+                        withAnimation(.easeInOut(duration: 0.2)) { activeFilter = nil }
+                    }
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
             }
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
         .background(Color(.systemGroupedBackground))
     }
 
@@ -149,101 +222,6 @@ struct ItemListView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Capsule().fill(Color(.tertiarySystemFill)))
-    }
-}
-
-// MARK: - Filter Sheet
-
-private struct ItemFilterSheet: View {
-    @Binding var selectedCategory: ItemCategory
-    @Binding var activeFilter: ItemListFilter?
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("List Type") {
-                    ForEach(ItemCategory.allCases, id: \.self) { category in
-                        Button {
-                            selectedCategory = category
-                        } label: {
-                            HStack {
-                                Image(systemName: category.icon)
-                                    .font(.system(size: 16))
-                                    .frame(width: 24, alignment: .center)
-                                Text(category.rawValue)
-                                if selectedCategory == category {
-                                    Spacer()
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                    }
-                }
-
-                switch selectedCategory {
-                case .subscriptions, .recurringPayments:
-                    Section("Category") {
-                        filterOption(nil as ItemListFilter?) { activeFilter = nil }
-                        ForEach(SubscriptionCategory.allCases, id: \.self) { cat in
-                            filterOption(.subscriptionCategory(cat)) { activeFilter = .subscriptionCategory(cat) }
-                        }
-                    }
-                    Section {
-                        Button {
-                            activeFilter = activeFilter == .pastDueOnly ? nil : .pastDueOnly
-                        } label: {
-                            HStack {
-                                Text("Past due only")
-                                if activeFilter == .pastDueOnly {
-                                    Spacer()
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                    }
-                case .assets:
-                    Section("Category") {
-                        filterOption(nil as ItemListFilter?) { activeFilter = nil }
-                        ForEach(AssetCategory.allCases, id: \.self) { cat in
-                            filterOption(.assetCategory(cat)) { activeFilter = .assetCategory(cat) }
-                        }
-                    }
-                case .warranties:
-                    Section("Status") {
-                        filterOption(nil as ItemListFilter?) { activeFilter = nil }
-                        ForEach(WarrantyFilterStatus.allCases, id: \.self) { status in
-                            filterOption(.warrantyStatus(status)) { activeFilter = .warrantyStatus(status) }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Filter")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func filterOption(_ filter: ItemListFilter?, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(filter?.label ?? "All")
-                if activeFilter == filter {
-                    Spacer()
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-            }
-        }
-        .foregroundStyle(.primary)
     }
 }
 
