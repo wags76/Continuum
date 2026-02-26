@@ -47,11 +47,6 @@ struct AssetEditView: View {
         .navigationTitle(isEditing ? "Edit Asset" : "New Asset")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
-                }
-            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     save()

@@ -40,11 +40,6 @@ struct WarrantyEditView: View {
         .navigationTitle(isEditing ? "Edit Warranty" : "New Warranty")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
-                }
-            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     save()
