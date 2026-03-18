@@ -16,13 +16,25 @@ struct DashboardView: View {
     @Query private var warranties: [Warranty]
     @State private var showMonthlyBreakdown = false
 
+    private var subscriptionMonthlyTotal: Decimal {
+        subscriptions.filter(\.isSubscription).reduce(0) { $0 + $1.monthlyEquivalent }
+    }
+
+    private var recurringPaymentsMonthlyTotal: Decimal {
+        subscriptions.filter { !$0.isSubscription }.reduce(0) { $0 + $1.monthlyEquivalent }
+    }
+
     private var monthlyRecurringTotal: Decimal {
-        subscriptions.reduce(0) { $0 + $1.monthlyEquivalent }
+        subscriptionMonthlyTotal + recurringPaymentsMonthlyTotal
     }
 
     private var totalAssetsValue: Decimal {
         assets.reduce(0) { $0 + $1.currentValue }
     }
+
+    private var hasSubscriptions: Bool { subscriptions.contains(where: \.isSubscription) }
+    private var hasRecurringPayments: Bool { subscriptions.contains(where: { !$0.isSubscription }) }
+    private var hasAssets: Bool { !assets.isEmpty }
 
     private var expiringWarranties: [Warranty] {
         let thirtyDaysFromNow = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
@@ -42,26 +54,22 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Summary: row 1 = primary metrics, row 2 = item counts
+                    // Summary: overview card (amounts) + row of count cards
                     VStack(spacing: 16) {
-                        HStack(spacing: 16) {
-                            SummaryCard(
-                                title: "Monthly Recurring",
-                                value: formatCurrency(monthlyRecurringTotal),
-                                icon: "arrow.triangle.2.circlepath",
-                                color: .blue,
-                                onTap: { showMonthlyBreakdown = true }
-                            )
-                            .frame(maxWidth: .infinity)
-                            SummaryCard(
-                                title: "Total Assets",
-                                value: formatCurrency(totalAssetsValue),
-                                icon: "dollarsign",
-                                color: .green,
-                                onTap: { appNavigation.switchToItems(category: .assets) }
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
+                        OverviewCard(
+                            subscriptionMonthly: subscriptionMonthlyTotal,
+                            recurringPaymentsMonthly: recurringPaymentsMonthlyTotal,
+                            totalAssets: totalAssetsValue,
+                            warrantyCount: warranties.count,
+                            expiringWarrantyCount: expiringWarranties.count,
+                            hasSubscriptions: hasSubscriptions,
+                            hasRecurringPayments: hasRecurringPayments,
+                            hasAssets: hasAssets,
+                            formatCurrency: formatCurrency,
+                            onTapBreakdown: { showMonthlyBreakdown = true },
+                            onTapAssets: { appNavigation.switchToItems(category: .assets) },
+                            onTapWarranties: { appNavigation.switchToItems(category: .warranties) }
+                        )
                         HStack(spacing: 16) {
                             SummaryCard(
                                 title: "Subscriptions",
@@ -185,8 +193,20 @@ private struct MonthlyRecurringBreakdownSheet: View {
     let formatCurrency: (Decimal) -> String
     let onViewAll: () -> Void
 
-    private var sortedByMonthly: [Subscription] {
-        subscriptions.sorted { $0.monthlyEquivalent > $1.monthlyEquivalent }
+    private var subscriptionItems: [Subscription] {
+        subscriptions.filter(\.isSubscription).sorted { $0.monthlyEquivalent > $1.monthlyEquivalent }
+    }
+
+    private var recurringItems: [Subscription] {
+        subscriptions.filter { !$0.isSubscription }.sorted { $0.monthlyEquivalent > $1.monthlyEquivalent }
+    }
+
+    private var subscriptionTotal: Decimal {
+        subscriptionItems.reduce(0) { $0 + $1.monthlyEquivalent }
+    }
+
+    private var recurringTotal: Decimal {
+        recurringItems.reduce(0) { $0 + $1.monthlyEquivalent }
     }
 
     var body: some View {
@@ -200,14 +220,50 @@ private struct MonthlyRecurringBreakdownSheet: View {
                     )
                 } else {
                     List {
-                        ForEach(sortedByMonthly) { sub in
-                            HStack {
-                                Text(sub.name)
-                                    .font(.body)
-                                Spacer()
-                                Text(formatCurrency(sub.monthlyEquivalent))
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.secondary)
+                        if !subscriptionItems.isEmpty {
+                            Section {
+                                ForEach(subscriptionItems) { sub in
+                                    HStack {
+                                        Text(sub.name)
+                                            .font(.body)
+                                        Spacer()
+                                        Text(formatCurrency(sub.monthlyEquivalent))
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                HStack {
+                                    Text("Subtotal")
+                                        .font(.subheadline.weight(.medium))
+                                    Spacer()
+                                    Text(formatCurrency(subscriptionTotal))
+                                        .font(.subheadline.weight(.medium))
+                                }
+                            } header: {
+                                Text("Subscriptions")
+                            }
+                        }
+                        if !recurringItems.isEmpty {
+                            Section {
+                                ForEach(recurringItems) { sub in
+                                    HStack {
+                                        Text(sub.name)
+                                            .font(.body)
+                                        Spacer()
+                                        Text(formatCurrency(sub.monthlyEquivalent))
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                HStack {
+                                    Text("Subtotal")
+                                        .font(.subheadline.weight(.medium))
+                                    Spacer()
+                                    Text(formatCurrency(recurringTotal))
+                                        .font(.subheadline.weight(.medium))
+                                }
+                            } header: {
+                                Text("Recurring payments")
                             }
                         }
                         Section {
@@ -240,6 +296,114 @@ private struct MonthlyRecurringBreakdownSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Overview card (subscriptions, recurring, assets, warranties)
+
+private struct OverviewCard: View {
+    let subscriptionMonthly: Decimal
+    let recurringPaymentsMonthly: Decimal
+    let totalAssets: Decimal
+    let warrantyCount: Int
+    let expiringWarrantyCount: Int
+    let hasSubscriptions: Bool
+    let hasRecurringPayments: Bool
+    let hasAssets: Bool
+    let formatCurrency: (Decimal) -> String
+    let onTapBreakdown: () -> Void
+    let onTapAssets: () -> Void
+    let onTapWarranties: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Overview")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 10) {
+                if hasSubscriptions || subscriptionMonthly > 0 {
+                    overviewRow(
+                        label: "Subscriptions",
+                        icon: "creditcard",
+                        value: formatCurrency(subscriptionMonthly),
+                        suffix: "/mo",
+                        isMuted: !hasSubscriptions && subscriptionMonthly == 0,
+                        action: onTapBreakdown
+                    )
+                }
+                if hasRecurringPayments || recurringPaymentsMonthly > 0 {
+                    overviewRow(
+                        label: "Recurring payments",
+                        icon: "repeat",
+                        value: formatCurrency(recurringPaymentsMonthly),
+                        suffix: "/mo",
+                        isMuted: !hasRecurringPayments && recurringPaymentsMonthly == 0,
+                        action: onTapBreakdown
+                    )
+                }
+                if hasAssets || totalAssets > 0 {
+                    overviewRow(
+                        label: "Assets",
+                        icon: "dollarsign",
+                        value: formatCurrency(totalAssets),
+                        suffix: nil,
+                        isMuted: !hasAssets && totalAssets == 0,
+                        action: onTapAssets
+                    )
+                }
+                if warrantyCount > 0 {
+                    overviewRow(
+                        label: "Warranties",
+                        icon: "shield.checkered",
+                        value: "\(warrantyCount)",
+                        suffix: expiringWarrantyCount > 0 ? " (\(expiringWarrantyCount) expiring soon)" : nil,
+                        isMuted: false,
+                        action: onTapWarranties
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func overviewRow(
+        label: String,
+        icon: String,
+        value: String,
+        suffix: String?,
+        isMuted: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(label)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 12)
+                HStack(spacing: 2) {
+                    Text(value)
+                        .font(.subheadline.weight(.medium))
+                    if let suffix {
+                        Text(suffix)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .foregroundStyle(isMuted ? .secondary : .primary)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
