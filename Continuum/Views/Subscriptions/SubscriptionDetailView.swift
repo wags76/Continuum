@@ -11,6 +11,7 @@ import SwiftData
 struct SubscriptionDetailView: View {
     @Bindable var subscription: Subscription
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     private var nextRenewalDate: Date {
         subscription.billingCycle.nextDueDateFrom(subscription.nextDueDate)
@@ -43,6 +44,7 @@ struct SubscriptionDetailView: View {
                 Button {
                     subscription.nextDueDate = nextRenewalDate
                     try? modelContext.save()
+                    dismiss()
                 } label: {
                     Label("Mark as renewed", systemImage: "arrow.clockwise.circle.fill")
                 }
