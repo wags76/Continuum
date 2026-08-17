@@ -37,6 +37,26 @@ struct CalendarView: View {
             }
             .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { viewMode = .month }
+                        } label: {
+                            Label("Month", systemImage: viewMode == .month ? "checkmark" : "calendar")
+                        }
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { viewMode = .week }
+                        } label: {
+                            Label("Week", systemImage: viewMode == .week ? "checkmark" : "calendar.badge.clock")
+                        }
+                    } label: {
+                        Label(viewMode.rawValue, systemImage: viewMode == .month ? "calendar" : "calendar.badge.clock")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .accessibilityLabel("Calendar view: \(viewMode.rawValue)")
+                }
+            }
             .navigationDestination(item: $selectedWarranty) { warranty in
                 WarrantyDetailView(warranty: warranty)
             }
@@ -48,12 +68,6 @@ struct CalendarView: View {
 
     private var headerSection: some View {
         VStack(spacing: 12) {
-            Picker("Calendar view", selection: $viewMode) {
-                Label("Month", systemImage: "calendar").tag(CalendarViewMode.month)
-                Label("Week", systemImage: "calendar.badge.clock").tag(CalendarViewMode.week)
-            }
-            .pickerStyle(.segmented)
-
             HStack(spacing: 12) {
                 periodButton(systemImage: "chevron.left", label: "Previous \(viewMode.rawValue.lowercased())", action: previousPeriod)
 
