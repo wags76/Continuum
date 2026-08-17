@@ -34,7 +34,7 @@ enum ItemListFilter: Equatable {
     var label: String {
         switch self {
         case .subscriptionCategory(let cat): return cat.rawValue
-        case .pastDueOnly: return "Past due"
+        case .pastDueOnly: return "All past due"
         case .assetCategory(let cat): return cat.rawValue
         case .warrantyStatus(let status): return status.label
         }
@@ -183,7 +183,7 @@ struct ItemListView: View {
                 Button {
                     activeFilter = activeFilter == .pastDueOnly ? nil : .pastDueOnly
                 } label: {
-                    Label("Past due only", systemImage: activeFilter == .pastDueOnly ? "checkmark.circle.fill" : "circle")
+                    Label("All past due items", systemImage: activeFilter == .pastDueOnly ? "checkmark.circle.fill" : "circle")
                 }
             case .assets:
                 Button {
@@ -283,6 +283,10 @@ private struct RecurringItemListViewContent: View {
     @Query(sort: \Subscription.nextDueDate) private var subscriptions: [Subscription]
 
     private var matchingSubscriptions: [Subscription] {
+        if activeFilter == .pastDueOnly {
+            return subscriptions.filter(\.isPastDue)
+        }
+
         var result: [Subscription]
         switch filter {
         case .subscriptionsOnly: result = subscriptions.filter(\.isSubscription)
@@ -293,7 +297,7 @@ private struct RecurringItemListViewContent: View {
             case .subscriptionCategory(let cat):
                 result = result.filter { $0.category == cat }
             case .pastDueOnly:
-                result = result.filter(\.isPastDue)
+                break
             default: break
             }
         }
@@ -332,7 +336,13 @@ private struct RecurringItemListViewContent: View {
 
     var body: some View {
         Group {
-            if baseMatchingSubscriptions.isEmpty {
+            if activeFilter == .pastDueOnly && matchingSubscriptions.isEmpty {
+                ContentUnavailableView(
+                    "No Past Due Items",
+                    systemImage: "checkmark.circle",
+                    description: Text("You're all caught up. No subscriptions or recurring payments are past due.")
+                )
+            } else if baseMatchingSubscriptions.isEmpty && activeFilter != .pastDueOnly {
                 ContentUnavailableView(
                     emptyTitle,
                     systemImage: filter == .subscriptionsOnly ? "creditcard" : "repeat",
