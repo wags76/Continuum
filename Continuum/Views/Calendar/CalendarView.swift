@@ -39,22 +39,18 @@ struct CalendarView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { viewMode = .month }
-                        } label: {
-                            Label("Month", systemImage: viewMode == .month ? "checkmark" : "calendar")
-                        }
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { viewMode = .week }
-                        } label: {
-                            Label("Week", systemImage: viewMode == .week ? "checkmark" : "calendar.badge.clock")
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewMode = viewMode == .month ? .week : .month
                         }
                     } label: {
-                        Label(viewMode.rawValue, systemImage: viewMode == .month ? "calendar" : "calendar.badge.clock")
+                        Label(
+                            viewMode == .month ? "Week" : "Month",
+                            systemImage: viewMode == .month ? "calendar.badge.clock" : "calendar"
+                        )
                             .font(.subheadline.weight(.semibold))
                     }
-                    .accessibilityLabel("Calendar view: \(viewMode.rawValue)")
+                    .accessibilityLabel("Switch to \(viewMode == .month ? "week" : "month") view")
                 }
             }
             .navigationDestination(item: $selectedWarranty) { warranty in
