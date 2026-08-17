@@ -7,6 +7,8 @@ struct DashboardView: View {
     @Query private var assets: [PersonalAsset]
     @Query private var warranties: [Warranty]
     @State private var showMonthlyBreakdown = false
+    @State private var selectedSubscription: Subscription?
+    @State private var selectedWarranty: Warranty?
 
     private var subscriptionMonthlyTotal: Decimal {
         subscriptions.filter(\.isSubscription).reduce(0) { $0 + $1.monthlyEquivalent }
@@ -65,6 +67,12 @@ struct DashboardView: View {
             }
             .background(ContinuumStyle.canvas.ignoresSafeArea())
             .navigationTitle("Continuum")
+            .navigationDestination(item: $selectedSubscription) { subscription in
+                SubscriptionDetailView(subscription: subscription)
+            }
+            .navigationDestination(item: $selectedWarranty) { warranty in
+                WarrantyDetailView(warranty: warranty)
+            }
             .sheet(isPresented: $showMonthlyBreakdown) {
                 MonthlyRecurringBreakdownSheet(
                     subscriptions: subscriptions,
@@ -194,24 +202,36 @@ struct DashboardView: View {
 
                 VStack(spacing: 0) {
                     ForEach(Array(upcomingRenewals.prefix(4).enumerated()), id: \.element.persistentModelID) { index, subscription in
-                        AttentionRow(
-                            title: subscription.name,
-                            detail: subscription.isPastDue ? "Past due" : subscription.nextDueDate.formatted(.dateTime.month(.abbreviated).day()),
-                            value: ContinuumFormatters.currency(subscription.amount),
-                            icon: subscription.isSubscription ? "creditcard.fill" : "repeat",
-                            color: subscription.isPastDue ? .red : .orange
-                        )
+                        Button {
+                            selectedSubscription = subscription
+                        } label: {
+                            AttentionRow(
+                                title: subscription.name,
+                                detail: subscription.isPastDue ? "Past due" : subscription.nextDueDate.formatted(.dateTime.month(.abbreviated).day()),
+                                value: ContinuumFormatters.currency(subscription.amount),
+                                icon: subscription.isSubscription ? "creditcard.fill" : "repeat",
+                                color: subscription.isPastDue ? .red : .orange
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens subscription details")
                         if index < min(upcomingRenewals.count, 4) - 1 || !expiringWarranties.isEmpty { Divider().padding(.leading, 52) }
                     }
 
                     ForEach(Array(expiringWarranties.prefix(3).enumerated()), id: \.element.persistentModelID) { index, warranty in
-                        AttentionRow(
-                            title: warranty.productName,
-                            detail: warranty.expiryDate.formatted(.dateTime.month(.abbreviated).day().year()),
-                            value: "\(max(warranty.daysUntilExpiry, 0))d left",
-                            icon: "shield.fill",
-                            color: .purple
-                        )
+                        Button {
+                            selectedWarranty = warranty
+                        } label: {
+                            AttentionRow(
+                                title: warranty.productName,
+                                detail: warranty.expiryDate.formatted(.dateTime.month(.abbreviated).day().year()),
+                                value: "\(max(warranty.daysUntilExpiry, 0))d left",
+                                icon: "shield.fill",
+                                color: .purple
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens warranty details")
                         if index < min(expiringWarranties.count, 3) - 1 { Divider().padding(.leading, 52) }
                     }
                 }
@@ -331,6 +351,9 @@ private struct AttentionRow: View {
             Text(value)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 8)
     }
