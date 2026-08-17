@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode build output
+build/
+DerivedData/
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Xcode per-user state
+**/xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods (keep Podfile and Podfile.lock)
+Pods/
+
+# Carthage (keep Cartfile and Cartfile.resolved)
+Carthage/Build/
+
+# Playground generated data
+timeline.xctimeline
+playground.xcworkspace/xcuserdata/
+
+# Fastlane generated reports and screenshots
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Temporary files
+*.swp
+*.tmp
+*~
