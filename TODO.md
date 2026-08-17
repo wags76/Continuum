@@ -2,6 +2,7 @@
 
 ## Completed
 
+- [x] Refresh the Dashboard, Calendar, Items, and Settings screens with a cohesive, modern visual system.
 - [x] Add a dashboard for recurring costs, assets, warranties, renewals, and expirations.
 - [x] Add searchable and filterable lists for subscriptions, recurring payments, assets, and warranties.
 - [x] Add month and week calendar views for renewal and warranty dates.
@@ -21,12 +22,12 @@
 
 ## Later
 
-- [ ] Replace the empty dashboard's blank Overview card with onboarding copy and quick actions for adding each item type.
-- [ ] Make dashboard summary cards adaptive for narrow screens, iPad layouts, and larger Dynamic Type sizes.
-- [ ] Replace the calendar mode icon with a clearly labeled Month/Week control and keep the selected date synchronized while paging.
-- [ ] Localize calendar weekday headings and correct the month-grid range so it does not display an unnecessary extra week.
+- [x] Replace the empty dashboard's blank Overview card with onboarding copy and quick actions for adding each item type.
+- [x] Make dashboard summary cards adaptive for narrow screens, iPad layouts, and larger Dynamic Type sizes.
+- [x] Replace the calendar mode icon with a clearly labeled Month/Week control and keep the selected date synchronized while paging.
+- [x] Localize calendar weekday headings and correct the month-grid range so it does not display an unnecessary extra week.
 - [ ] Add deletion confirmation or undo support to item lists.
 - [ ] Audit VoiceOver labels, Dynamic Type, dark mode, contrast, and portrait and landscape layouts.
 - [ ] Extract shared currency formatting, date status logic, row components, and reusable calendar components.
 - [ ] Remove unused duplicate list implementations after confirming the consolidated Items screen covers every flow.
-- [ ] Replace delayed dashboard tab switching with explicit navigation state.
+- [x] Replace delayed dashboard tab switching with explicit navigation state.

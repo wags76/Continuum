@@ -17,6 +17,18 @@ enum AssetCategory: String, Codable, CaseIterable {
     case collectibles = "Collectibles"
     case furniture = "Furniture"
     case other = "Other"
+
+    var icon: String {
+        switch self {
+        case .electronics: return "desktopcomputer"
+        case .vehicle: return "car.fill"
+        case .property: return "house.fill"
+        case .jewelry: return "diamond.fill"
+        case .collectibles: return "shippingbox.fill"
+        case .furniture: return "sofa.fill"
+        case .other: return "square.grid.2x2.fill"
+        }
+    }
 }
 
 @Model

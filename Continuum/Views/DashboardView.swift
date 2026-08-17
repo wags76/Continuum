@@ -1,15 +1,7 @@
-//
-//  DashboardView.swift
-//  Continuum
-//
-//  Created by Christopher Wagner on 2/17/26.
-//
-
 import SwiftUI
 import SwiftData
 
 struct DashboardView: View {
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appNavigation: AppNavigation
     @Query private var subscriptions: [Subscription]
     @Query private var assets: [PersonalAsset]
@@ -32,165 +24,322 @@ struct DashboardView: View {
         assets.reduce(0) { $0 + $1.currentValue }
     }
 
-    private var hasSubscriptions: Bool { subscriptions.contains(where: \.isSubscription) }
-    private var hasRecurringPayments: Bool { subscriptions.contains(where: { !$0.isSubscription }) }
-    private var hasAssets: Bool { !assets.isEmpty }
-
     private var expiringWarranties: [Warranty] {
-        let thirtyDaysFromNow = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+        let horizon = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
         return warranties
-            .filter { !$0.isExpired && $0.expiryDate <= thirtyDaysFromNow }
+            .filter { !$0.isExpired && $0.expiryDate <= horizon }
             .sorted { $0.expiryDate < $1.expiryDate }
     }
 
     private var upcomingRenewals: [Subscription] {
-        let thirtyDaysFromNow = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+        let horizon = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
         return subscriptions
-            .filter { $0.nextDueDate <= thirtyDaysFromNow }
+            .filter { $0.nextDueDate <= horizon }
             .sorted { $0.nextDueDate < $1.nextDueDate }
+    }
+
+    private var attentionCount: Int {
+        subscriptions.filter(\.isPastDue).count + expiringWarranties.count
+    }
+
+    private var hasAnyData: Bool {
+        !subscriptions.isEmpty || !assets.isEmpty || !warranties.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Summary: overview card (amounts) + row of count cards
-                    VStack(spacing: 16) {
-                        OverviewCard(
-                            subscriptionMonthly: subscriptionMonthlyTotal,
-                            recurringPaymentsMonthly: recurringPaymentsMonthlyTotal,
-                            totalAssets: totalAssetsValue,
-                            warrantyCount: warranties.count,
-                            expiringWarrantyCount: expiringWarranties.count,
-                            hasSubscriptions: hasSubscriptions,
-                            hasRecurringPayments: hasRecurringPayments,
-                            hasAssets: hasAssets,
-                            formatCurrency: formatCurrency,
-                            onTapBreakdown: { showMonthlyBreakdown = true },
-                            onTapAssets: { appNavigation.switchToItems(category: .assets) },
-                            onTapWarranties: { appNavigation.switchToItems(category: .warranties) }
-                        )
-                        HStack(spacing: 16) {
-                            SummaryCard(
-                                title: "Subscriptions",
-                                value: "\(subscriptions.filter(\.isSubscription).count)",
-                                icon: "creditcard",
-                                color: .orange,
-                                onTap: { appNavigation.switchToItems(category: .subscriptions) }
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 118)
-                            SummaryCard(
-                                title: "Recurring Payments",
-                                value: "\(subscriptions.filter { !$0.isSubscription }.count)",
-                                icon: "repeat",
-                                color: .teal,
-                                onTap: { appNavigation.switchToItems(category: .recurringPayments) }
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 118)
-                            SummaryCard(
-                                title: "Warranties",
-                                value: "\(warranties.count)",
-                                icon: "shield.checkered",
-                                color: .purple,
-                                onTap: { appNavigation.switchToItems(category: .warranties) }
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 118)
-                        }
-                    }
+                LazyVStack(alignment: .leading, spacing: 22) {
+                    heroCard
 
-                    // Upcoming renewals
-                    if !upcomingRenewals.isEmpty {
-                        SectionCard(title: "Upcoming Renewals", icon: "calendar.badge.clock") {
-                            ForEach(upcomingRenewals.prefix(5)) { sub in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(sub.name)
-                                            .font(.subheadline.weight(.medium))
-                                        if sub.isPastDue {
-                                            Text("Past due")
-                                                .font(.caption)
-                                                .foregroundStyle(.red)
-                                        } else {
-                                            Text(sub.nextDueDate, format: .dateTime.month().day())
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    Text(formatCurrency(sub.amount))
-                                        .font(.subheadline.weight(.medium))
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
-
-                    // Expiring warranties
-                    if !expiringWarranties.isEmpty {
-                        SectionCard(title: "Expiring Soon", icon: "exclamationmark.triangle") {
-                            ForEach(expiringWarranties.prefix(5)) { warranty in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(warranty.productName)
-                                            .font(.subheadline.weight(.medium))
-                                        Text(warranty.expiryDate, format: .dateTime.month().day().year())
-                                            .font(.caption)
-                                            .foregroundStyle(warranty.isExpired ? .red : .secondary)
-                                    }
-                                    Spacer()
-                                    if warranty.daysUntilExpiry > 0 {
-                                        Text("\(warranty.daysUntilExpiry)d left")
-                                            .font(.caption)
-                                            .foregroundStyle(.orange)
-                                    } else {
-                                        Text("Expired")
-                                            .font(.caption)
-                                            .foregroundStyle(.red)
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
+                    if hasAnyData {
+                        snapshotSection
+                        attentionSection
+                    } else {
+                        gettingStartedCard
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
             }
+            .background(ContinuumStyle.canvas.ignoresSafeArea())
             .navigationTitle("Continuum")
-            .background(Color(.systemGroupedBackground))
             .sheet(isPresented: $showMonthlyBreakdown) {
                 MonthlyRecurringBreakdownSheet(
                     subscriptions: subscriptions,
                     total: monthlyRecurringTotal,
-                    formatCurrency: formatCurrency,
                     onViewAll: {
                         showMonthlyBreakdown = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            appNavigation.switchToItems(category: .subscriptions)
-                        }
+                        appNavigation.switchToItems(category: .subscriptions)
                     }
                 )
             }
         }
     }
 
-    private func formatCurrency(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: value as NSDecimalNumber) ?? "$0"
+    private var heroCard: some View {
+        Button {
+            showMonthlyBreakdown = true
+        } label: {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack {
+                    Label("MONTHLY COMMITMENTS", systemImage: "waveform.path.ecg")
+                        .font(.caption.weight(.bold))
+                        .tracking(0.6)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(.white.opacity(0.82))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(ContinuumFormatters.currency(monthlyRecurringTotal))
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                        .contentTransition(.numericText())
+                    Text(subscriptions.isEmpty ? "Add recurring items to see your monthly baseline" : "Estimated across all recurring items")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.78))
+                }
+
+                HStack(spacing: 8) {
+                    heroPill("\(subscriptions.filter(\.isSubscription).count) subscriptions", icon: "creditcard")
+                    heroPill("\(subscriptions.filter { !$0.isSubscription }.count) payments", icon: "repeat")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(22)
+            .foregroundStyle(.white)
+            .background {
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.accentColor, Color.indigo.opacity(0.9)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    Circle()
+                        .fill(.white.opacity(0.08))
+                        .frame(width: 190)
+                        .offset(x: 150, y: -70)
+                    Circle()
+                        .fill(.white.opacity(0.06))
+                        .frame(width: 120)
+                        .offset(x: 80, y: 100)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            }
+            .shadow(color: Color.accentColor.opacity(0.25), radius: 20, y: 10)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows the monthly recurring cost breakdown")
+    }
+
+    private func heroPill(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(.white.opacity(0.14), in: Capsule())
+    }
+
+    private var snapshotSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeading("Your snapshot", subtitle: "A quick read on what you track")
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 12)], spacing: 12) {
+                SnapshotCard(
+                    title: "Assets",
+                    value: ContinuumFormatters.currency(totalAssetsValue),
+                    detail: "\(assets.count) tracked",
+                    icon: "chart.line.uptrend.xyaxis",
+                    color: .green
+                ) { appNavigation.switchToItems(category: .assets) }
+
+                SnapshotCard(
+                    title: "Warranties",
+                    value: "\(warranties.count)",
+                    detail: expiringWarranties.isEmpty ? "All clear" : "\(expiringWarranties.count) expiring soon",
+                    icon: "shield.checkered",
+                    color: .purple
+                ) { appNavigation.switchToItems(category: .warranties) }
+
+                SnapshotCard(
+                    title: "Subscriptions",
+                    value: ContinuumFormatters.currency(subscriptionMonthlyTotal),
+                    detail: "per month",
+                    icon: "creditcard",
+                    color: .orange
+                ) { appNavigation.switchToItems(category: .subscriptions) }
+
+                SnapshotCard(
+                    title: "Other payments",
+                    value: ContinuumFormatters.currency(recurringPaymentsMonthlyTotal),
+                    detail: "per month",
+                    icon: "repeat",
+                    color: .teal
+                ) { appNavigation.switchToItems(category: .recurringPayments) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var attentionSection: some View {
+        if !upcomingRenewals.isEmpty || !expiringWarranties.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionHeading(
+                    "Needs attention",
+                    subtitle: attentionCount == 0 ? "Coming up in the next 30 days" : "\(attentionCount) item\(attentionCount == 1 ? "" : "s") to review"
+                )
+
+                VStack(spacing: 0) {
+                    ForEach(Array(upcomingRenewals.prefix(4).enumerated()), id: \.element.persistentModelID) { index, subscription in
+                        AttentionRow(
+                            title: subscription.name,
+                            detail: subscription.isPastDue ? "Past due" : subscription.nextDueDate.formatted(.dateTime.month(.abbreviated).day()),
+                            value: ContinuumFormatters.currency(subscription.amount),
+                            icon: subscription.isSubscription ? "creditcard.fill" : "repeat",
+                            color: subscription.isPastDue ? .red : .orange
+                        )
+                        if index < min(upcomingRenewals.count, 4) - 1 || !expiringWarranties.isEmpty { Divider().padding(.leading, 52) }
+                    }
+
+                    ForEach(Array(expiringWarranties.prefix(3).enumerated()), id: \.element.persistentModelID) { index, warranty in
+                        AttentionRow(
+                            title: warranty.productName,
+                            detail: warranty.expiryDate.formatted(.dateTime.month(.abbreviated).day().year()),
+                            value: "\(max(warranty.daysUntilExpiry, 0))d left",
+                            icon: "shield.fill",
+                            color: .purple
+                        )
+                        if index < min(expiringWarranties.count, 3) - 1 { Divider().padding(.leading, 52) }
+                    }
+                }
+                .continuumCard(padding: 14)
+            }
+        }
+    }
+
+    private var gettingStartedCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                ContinuumSymbolTile(systemImage: "sparkles", color: .indigo, size: 48)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Build your financial timeline")
+                        .font(.title3.weight(.bold))
+                    Text("Start with one item. Continuum will organize costs, due dates, values, and coverage for you.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(spacing: 10) {
+                startButton("Add a subscription", icon: "creditcard", category: .subscriptions, color: .orange)
+                startButton("Track an asset", icon: "chart.line.uptrend.xyaxis", category: .assets, color: .green)
+                startButton("Add a warranty", icon: "shield.checkered", category: .warranties, color: .purple)
+            }
+        }
+        .continuumCard()
+    }
+
+    private func startButton(_ title: String, icon: String, category: ItemCategory, color: Color) -> some View {
+        Button {
+            appNavigation.switchToItems(category: category)
+        } label: {
+            HStack(spacing: 12) {
+                ContinuumSymbolTile(systemImage: icon, color: color, size: 36)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(.tertiarySystemFill).opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sectionHeading(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.title3.weight(.bold))
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
-// MARK: - Monthly recurring breakdown sheet
+private struct SnapshotCard: View {
+    let title: String
+    let value: String
+    let detail: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    ContinuumSymbolTile(systemImage: icon, color: color)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(value)
+                        .font(.title3.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .continuumCard(padding: 15)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AttentionRow: View {
+    let title: String
+    let detail: String
+    let value: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ContinuumSymbolTile(systemImage: icon, color: color, size: 38)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(color == .red ? .red : .secondary)
+            }
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 8)
+    }
+}
 
 private struct MonthlyRecurringBreakdownSheet: View {
     @Environment(\.dismiss) private var dismiss
     let subscriptions: [Subscription]
     let total: Decimal
-    let formatCurrency: (Decimal) -> String
     let onViewAll: () -> Void
 
     private var subscriptionItems: [Subscription] {
@@ -201,265 +350,41 @@ private struct MonthlyRecurringBreakdownSheet: View {
         subscriptions.filter { !$0.isSubscription }.sorted { $0.monthlyEquivalent > $1.monthlyEquivalent }
     }
 
-    private var subscriptionTotal: Decimal {
-        subscriptionItems.reduce(0) { $0 + $1.monthlyEquivalent }
-    }
-
-    private var recurringTotal: Decimal {
-        recurringItems.reduce(0) { $0 + $1.monthlyEquivalent }
-    }
-
     var body: some View {
         NavigationStack {
-            Group {
-                if subscriptions.isEmpty {
-                    ContentUnavailableView(
-                        "No recurring items",
-                        systemImage: "arrow.triangle.2.circlepath",
-                        description: Text("Add subscriptions or recurring expenses to see a monthly breakdown.")
-                    )
-                } else {
-                    List {
-                        if !subscriptionItems.isEmpty {
-                            Section {
-                                ForEach(subscriptionItems) { sub in
-                                    HStack {
-                                        Text(sub.name)
-                                            .font(.body)
-                                        Spacer()
-                                        Text(formatCurrency(sub.monthlyEquivalent))
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                HStack {
-                                    Text("Subtotal")
-                                        .font(.subheadline.weight(.medium))
-                                    Spacer()
-                                    Text(formatCurrency(subscriptionTotal))
-                                        .font(.subheadline.weight(.medium))
-                                }
-                            } header: {
-                                Text("Subscriptions")
-                            }
-                        }
-                        if !recurringItems.isEmpty {
-                            Section {
-                                ForEach(recurringItems) { sub in
-                                    HStack {
-                                        Text(sub.name)
-                                            .font(.body)
-                                        Spacer()
-                                        Text(formatCurrency(sub.monthlyEquivalent))
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                HStack {
-                                    Text("Subtotal")
-                                        .font(.subheadline.weight(.medium))
-                                    Spacer()
-                                    Text(formatCurrency(recurringTotal))
-                                        .font(.subheadline.weight(.medium))
-                                }
-                            } header: {
-                                Text("Recurring payments")
-                            }
-                        }
-                        Section {
-                            HStack {
-                                Text("Total")
-                                    .font(.headline)
-                                Spacer()
-                                Text(formatCurrency(total))
-                                    .font(.headline)
-                            }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
+            List {
+                Section("Monthly estimate") {
+                    LabeledContent("Total", value: ContinuumFormatters.currency(total))
+                        .font(.headline)
                 }
+                breakdownSection("Subscriptions", items: subscriptionItems)
+                breakdownSection("Recurring payments", items: recurringItems)
             }
-            .navigationTitle("Monthly Recurring")
+            .navigationTitle("Monthly commitments")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 if !subscriptions.isEmpty {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("View all") {
-                            onViewAll()
-                        }
-                    }
+                    ToolbarItem(placement: .primaryAction) { Button("View all", action: onViewAll) }
                 }
             }
         }
     }
-}
 
-// MARK: - Overview card (subscriptions, recurring, assets, warranties)
-
-private struct OverviewCard: View {
-    let subscriptionMonthly: Decimal
-    let recurringPaymentsMonthly: Decimal
-    let totalAssets: Decimal
-    let warrantyCount: Int
-    let expiringWarrantyCount: Int
-    let hasSubscriptions: Bool
-    let hasRecurringPayments: Bool
-    let hasAssets: Bool
-    let formatCurrency: (Decimal) -> String
-    let onTapBreakdown: () -> Void
-    let onTapAssets: () -> Void
-    let onTapWarranties: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Overview")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            VStack(spacing: 10) {
-                if hasSubscriptions || subscriptionMonthly > 0 {
-                    overviewRow(
-                        label: "Subscriptions",
-                        icon: "creditcard",
-                        value: formatCurrency(subscriptionMonthly),
-                        suffix: "/mo",
-                        isMuted: !hasSubscriptions && subscriptionMonthly == 0,
-                        action: onTapBreakdown
-                    )
-                }
-                if hasRecurringPayments || recurringPaymentsMonthly > 0 {
-                    overviewRow(
-                        label: "Recurring payments",
-                        icon: "repeat",
-                        value: formatCurrency(recurringPaymentsMonthly),
-                        suffix: "/mo",
-                        isMuted: !hasRecurringPayments && recurringPaymentsMonthly == 0,
-                        action: onTapBreakdown
-                    )
-                }
-                if hasAssets || totalAssets > 0 {
-                    overviewRow(
-                        label: "Assets",
-                        icon: "dollarsign",
-                        value: formatCurrency(totalAssets),
-                        suffix: nil,
-                        isMuted: !hasAssets && totalAssets == 0,
-                        action: onTapAssets
-                    )
-                }
-                if warrantyCount > 0 {
-                    overviewRow(
-                        label: "Warranties",
-                        icon: "shield.checkered",
-                        value: "\(warrantyCount)",
-                        suffix: expiringWarrantyCount > 0 ? " (\(expiringWarrantyCount) expiring soon)" : nil,
-                        isMuted: false,
-                        action: onTapWarranties
-                    )
+    @ViewBuilder
+    private func breakdownSection(_ title: String, items: [Subscription]) -> some View {
+        if !items.isEmpty {
+            Section(title) {
+                ForEach(items) { item in
+                    LabeledContent(item.name, value: ContinuumFormatters.currency(item.monthlyEquivalent))
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func overviewRow(
-        label: String,
-        icon: String,
-        value: String,
-        suffix: String?,
-        isMuted: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(label)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 12)
-                HStack(spacing: 2) {
-                    Text(value)
-                        .font(.subheadline.weight(.medium))
-                    if let suffix {
-                        Text(suffix)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .foregroundStyle(isMuted ? .secondary : .primary)
-            }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct SummaryCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    var onTap: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-            Text(value)
-                .font(.title2.weight(.semibold))
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
-                .frame(minHeight: 34)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
-        .onTapGesture {
-            onTap?()
-        }
-    }
-}
-
-private struct SectionCard<Content: View>: View {
-    let title: String
-    let icon: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: icon)
-                .font(.headline)
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
 #Preview {
     DashboardView()
         .environmentObject(AppNavigation())
-        .modelContainer(for: [Subscription.self, PersonalAsset.self, Warranty.self], inMemory: true)
+        .modelContainer(for: [Subscription.self, PersonalAsset.self, AssetValueChange.self, Warranty.self], inMemory: true)
 }

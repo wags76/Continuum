@@ -20,6 +20,16 @@ final class AppNavigation: ObservableObject {
     @Published var selectedTab: Int = Tab.dashboard.rawValue
     @Published var selectedItemCategory: ItemCategory = .subscriptions
 
+    init() {
+#if DEBUG
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--ui-tab=") }),
+           let tab = Int(argument.replacingOccurrences(of: "--ui-tab=", with: "")),
+           (Tab.dashboard.rawValue...Tab.settings.rawValue).contains(tab) {
+            selectedTab = tab
+        }
+#endif
+    }
+
     func switchToItems(category: ItemCategory) {
         selectedItemCategory = category
         selectedTab = Tab.items.rawValue

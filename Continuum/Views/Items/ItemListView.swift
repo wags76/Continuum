@@ -70,10 +70,13 @@ struct ItemListView: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
+                    categoryHeader
                     categoryPicker
                     filterPillsSection
                 }
+                .background(.regularMaterial)
             }
+            .navigationTitle("Items")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search")
             .toolbar {
@@ -85,7 +88,41 @@ struct ItemListView: View {
                 searchText = ""
                 activeFilter = nil
             }
-            .background(Color(.systemGroupedBackground))
+            .background(ContinuumStyle.canvas.ignoresSafeArea())
+        }
+    }
+
+    private var categoryHeader: some View {
+        HStack(spacing: 12) {
+            ContinuumSymbolTile(systemImage: selectedCategory.icon, color: categoryColor, size: 42)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(selectedCategory.rawValue)
+                    .font(.headline)
+                Text(categorySubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private var categoryColor: Color {
+        switch selectedCategory {
+        case .subscriptions: return .orange
+        case .recurringPayments: return .teal
+        case .assets: return .green
+        case .warranties: return .purple
+        }
+    }
+
+    private var categorySubtitle: String {
+        switch selectedCategory {
+        case .subscriptions: return "Services and memberships"
+        case .recurringPayments: return "Bills and repeating obligations"
+        case .assets: return "Property and changing values"
+        case .warranties: return "Coverage and expiration dates"
         }
     }
 
@@ -103,12 +140,16 @@ struct ItemListView: View {
                             Text(category.rawValue)
                                 .font(.system(size: 14, weight: .medium, design: .rounded))
                         }
-                        .foregroundStyle(selectedCategory == category ? .white : .secondary)
+                        .foregroundStyle(selectedCategory == category ? categoryColor : .secondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(
-                            Capsule().fill(selectedCategory == category ? Color.accentColor : Color(.tertiarySystemFill))
+                            Capsule().fill(selectedCategory == category ? categoryColor.opacity(0.14) : Color(.tertiarySystemFill))
                         )
+                        .overlay {
+                            Capsule()
+                                .stroke(selectedCategory == category ? categoryColor.opacity(0.35) : .clear, lineWidth: 1)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -116,7 +157,7 @@ struct ItemListView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.clear)
     }
 
     /// Sub-filter menu: one tap to open, one tap to pick option (no sheet).
@@ -176,6 +217,7 @@ struct ItemListView: View {
         } label: {
             Image(systemName: "line.3.horizontal.decrease.circle")
         }
+        .accessibilityLabel("Filter \(selectedCategory.rawValue)")
     }
 
     private func filterAppliesToCurrentCategory(_ filter: ItemListFilter) -> Bool {
@@ -203,7 +245,7 @@ struct ItemListView: View {
                 .padding(.vertical, 8)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.clear)
     }
 
     private func filterPill(_ label: String, removable: Bool, onRemove: @escaping () -> Void) -> some View {
@@ -216,6 +258,7 @@ struct ItemListView: View {
                         .font(.system(size: 14))
                         .symbolRenderingMode(.hierarchical)
                 }
+                .accessibilityLabel("Remove \(label) filter")
             }
         }
         .foregroundStyle(.secondary)
@@ -311,7 +354,9 @@ private struct RecurringItemListViewContent: View {
                         } label: {
                             SubscriptionRowView(subscription: subscription)
                         }
-                        .listRowBackground(subscription.isPastDue ? Color.red.opacity(0.08) : nil)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 modelContext.delete(subscription)
@@ -321,7 +366,8 @@ private struct RecurringItemListViewContent: View {
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .toolbar {
@@ -382,6 +428,9 @@ private struct AssetListViewContent: View {
                         } label: {
                             AssetRowView(asset: asset)
                         }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 modelContext.delete(asset)
@@ -391,7 +440,8 @@ private struct AssetListViewContent: View {
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .toolbar {
@@ -456,6 +506,9 @@ private struct WarrantyListViewContent: View {
                         } label: {
                             WarrantyRowView(warranty: warranty)
                         }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 modelContext.delete(warranty)
@@ -465,7 +518,8 @@ private struct WarrantyListViewContent: View {
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .toolbar {
@@ -486,17 +540,22 @@ private struct SubscriptionRowView: View {
     let subscription: Subscription
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            ContinuumSymbolTile(
+                systemImage: subscription.isSubscription ? "creditcard.fill" : "repeat",
+                color: subscription.isPastDue ? .red : (subscription.isSubscription ? .orange : .teal),
+                size: 42
+            )
             VStack(alignment: .leading, spacing: 2) {
                 Text(subscription.name)
                     .font(.headline)
-                Text(subscription.category.rawValue)
+                Text("\(subscription.category.rawValue) · \(subscription.billingCycle.rawValue)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(formatCurrency(subscription.amount))
+                Text(ContinuumFormatters.currency(subscription.amount))
                     .font(.subheadline.weight(.medium))
                 Group {
                     if subscription.isPastDue {
@@ -514,14 +573,7 @@ private struct SubscriptionRowView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
-    }
-
-    private func formatCurrency(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: value as NSDecimalNumber) ?? "$0"
+        .continuumCard(padding: 14)
     }
 }
 
@@ -529,7 +581,8 @@ private struct AssetRowView: View {
     let asset: PersonalAsset
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            ContinuumSymbolTile(systemImage: asset.category.icon, color: .green, size: 42)
             VStack(alignment: .leading, spacing: 2) {
                 Text(asset.name)
                     .font(.headline)
@@ -538,17 +591,15 @@ private struct AssetRowView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(formatCurrency(asset.currentValue))
-                .font(.subheadline.weight(.medium))
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(ContinuumFormatters.currency(asset.currentValue))
+                    .font(.subheadline.weight(.semibold))
+                Text("Current value")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(.vertical, 4)
-    }
-
-    private func formatCurrency(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: value as NSDecimalNumber) ?? "$0"
+        .continuumCard(padding: 14)
     }
 }
 
@@ -556,7 +607,12 @@ private struct WarrantyRowView: View {
     let warranty: Warranty
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            ContinuumSymbolTile(
+                systemImage: "shield.checkered",
+                color: warranty.isExpired ? .red : (warranty.daysUntilExpiry <= 30 ? .orange : .purple),
+                size: 42
+            )
             VStack(alignment: .leading, spacing: 2) {
                 Text(warranty.productName)
                     .font(.headline)
@@ -583,7 +639,7 @@ private struct WarrantyRowView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .continuumCard(padding: 14)
     }
 }
 

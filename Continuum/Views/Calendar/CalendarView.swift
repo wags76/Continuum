@@ -33,22 +33,10 @@ struct CalendarView: View {
                         .padding(.top, 16)
                         .frame(maxHeight: .infinity)
                 }
-                .background(Color(.systemGroupedBackground))
+                .background(ContinuumStyle.canvas.ignoresSafeArea())
             }
             .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            viewMode = viewMode == .month ? .week : .month
-                        }
-                    } label: {
-                        Image(systemName: viewMode == .month ? "calendar" : "calendar.badge.clock")
-                            .font(.title2)
-                    }
-                }
-            }
             .navigationDestination(item: $selectedWarranty) { warranty in
                 WarrantyDetailView(warranty: warranty)
             }
@@ -59,120 +47,66 @@ struct CalendarView: View {
     }
 
     private var headerSection: some View {
-        Group {
-            if viewMode == .month {
-                VStack(spacing: 16) {
-                    HStack {
-                        Button(action: previousPeriod) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 36, height: 36)
-                                .background(
-                                    Circle()
-                                        .fill(Color.themeColor)
-                                        .shadow(color: Color.themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                                )
-                        }
-                        .buttonStyle(.plain)
-
-                        Spacer()
-
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                let today = Date()
-                                currentMonth = today
-                                selectedDate = today
-                            }
-                        } label: {
-                            Text(periodTitle)
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.themeColor.opacity(0.08))
-                                        .overlay(Capsule().stroke(Color.themeColor.opacity(0.2), lineWidth: 1))
-                                )
-                        }
-                        .buttonStyle(.plain)
-
-                        Spacer()
-
-                        Button(action: nextPeriod) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 36, height: 36)
-                                .background(
-                                    Circle()
-                                        .fill(Color.themeColor)
-                                        .shadow(color: Color.themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal)
-                }
-                .padding(.vertical, 8)
-                .background(Color(.systemGroupedBackground))
-            } else {
-                HStack {
-                    Button(action: previousPeriod) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(Color.themeColor)
-                                    .shadow(color: Color.themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                            )
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            let today = Date()
-                            currentMonth = today
-                            selectedDate = today
-                        }
-                    } label: {
-                        Text(periodTitle)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(Color.themeColor.opacity(0.08))
-                                    .overlay(Capsule().stroke(Color.themeColor.opacity(0.2), lineWidth: 1))
-                            )
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Button(action: nextPeriod) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(Color.themeColor)
-                                    .shadow(color: Color.themeColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 2)
-                .background(Color(.systemGroupedBackground))
+        VStack(spacing: 12) {
+            Picker("Calendar view", selection: $viewMode) {
+                Label("Month", systemImage: "calendar").tag(CalendarViewMode.month)
+                Label("Week", systemImage: "calendar.badge.clock").tag(CalendarViewMode.week)
             }
+            .pickerStyle(.segmented)
+
+            HStack(spacing: 12) {
+                periodButton(systemImage: "chevron.left", label: "Previous \(viewMode.rawValue.lowercased())", action: previousPeriod)
+
+                Button(action: returnToToday) {
+                    VStack(spacing: 2) {
+                        Text(periodTitle)
+                            .font(.system(.title3, design: .rounded, weight: .bold))
+                        Text("Tap for today")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+
+                periodButton(systemImage: "chevron.right", label: "Next \(viewMode.rawValue.lowercased())", action: nextPeriod)
+            }
+            .continuumCard(padding: 12)
+
+            HStack(spacing: 16) {
+                legendItem("Renewals", color: Color.themeColor)
+                legendItem("Warranties", color: .purple)
+                Spacer()
+            }
+            .padding(.horizontal, 4)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private func periodButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.bold))
+                .frame(width: 40, height: 40)
+                .background(Color.accentColor.opacity(0.13), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func legendItem(_ title: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func returnToToday() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            let today = Date()
+            currentMonth = today
+            selectedDate = today
         }
     }
 
@@ -220,10 +154,10 @@ struct CalendarView: View {
             selectedDateHeader
 
             if subscriptionsForSelectedDate.isEmpty && warrantiesForSelectedDate.isEmpty {
-                Spacer()
                 EmptyDayView()
                     .padding(.horizontal)
-                Spacer()
+                    .padding(.top, 16)
+                Spacer(minLength: 12)
             } else {
                 Spacer().frame(height: 16)
                 List {
@@ -372,6 +306,7 @@ struct CalendarView: View {
             case .week:
                 currentMonth = calendar.date(byAdding: .weekOfYear, value: -1, to: currentMonth) ?? currentMonth
             }
+            selectedDate = currentMonth
         }
     }
 
@@ -383,6 +318,7 @@ struct CalendarView: View {
             case .week:
                 currentMonth = calendar.date(byAdding: .weekOfYear, value: 1, to: currentMonth) ?? currentMonth
             }
+            selectedDate = currentMonth
         }
     }
 
@@ -428,10 +364,16 @@ struct MonthCalendarView: View {
 
     private let calendar = Calendar.current
 
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.shortStandaloneWeekdaySymbols
+        let start = max(calendar.firstWeekday - 1, 0)
+        return Array(symbols[start...] + symbols[..<start])
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 2) {
-                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { day in
+                ForEach(weekdaySymbols, id: \.self) { day in
                     Text(day)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundColor(.secondary)
@@ -475,7 +417,8 @@ struct MonthCalendarView: View {
         let monthStart = calendar.dateInterval(of: .month, for: currentMonth)?.start ?? currentMonth
         let startOfCalendar = calendar.dateInterval(of: .weekOfYear, for: monthStart)?.start ?? monthStart
         let endOfMonth = calendar.dateInterval(of: .month, for: monthStart)?.end ?? monthStart
-        let endOfCalendar = calendar.dateInterval(of: .weekOfYear, for: endOfMonth)?.end ?? endOfMonth
+        let lastDayOfMonth = calendar.date(byAdding: .day, value: -1, to: endOfMonth) ?? endOfMonth
+        let endOfCalendar = calendar.dateInterval(of: .weekOfYear, for: lastDayOfMonth)?.end ?? endOfMonth
 
         var days: [Date?] = []
         var currentDate = startOfCalendar
@@ -753,17 +696,17 @@ struct WarrantyCalendarCard: View {
 
 struct EmptyDayView: View {
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 14) {
             ZStack {
                 Circle()
                     .fill(Color.themeColor.opacity(0.08))
-                    .frame(width: 72, height: 72)
+                    .frame(width: 54, height: 54)
                     .overlay(Circle().stroke(Color.themeColor.opacity(0.2), lineWidth: 1))
                 Image(systemName: "calendar.badge.plus")
-                    .font(.system(size: 28, weight: .medium))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundColor(Color.themeColor)
             }
-            VStack(spacing: 12) {
+            VStack(spacing: 6) {
                 Text("No Renewals or Expirations")
                     .font(.title3)
                     .fontWeight(.semibold)
@@ -776,8 +719,8 @@ struct EmptyDayView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .padding(.horizontal, 32)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 24)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.regularMaterial)
